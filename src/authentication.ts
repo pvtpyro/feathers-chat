@@ -1,22 +1,39 @@
-import { ServiceAddons } from '@feathersjs/feathers';
+import { ServiceAddons, Params } from '@feathersjs/feathers';
 import { AuthenticationService, JWTStrategy } from '@feathersjs/authentication';
 import { LocalStrategy } from '@feathersjs/authentication-local';
-import { expressOauth } from '@feathersjs/authentication-oauth';
+import { expressOauth, OAuthStrategy, OAuthProfile } from '@feathersjs/authentication-oauth';
 
 import { Application } from './declarations';
 
 declare module './declarations' {
-  interface ServiceTypes {
-    'authentication': AuthenticationService & ServiceAddons<any>;
-  }
+	interface ServiceTypes {
+		'authentication': AuthenticationService & ServiceAddons<any>;
+	}
 }
 
-export default function(app: Application): void {
-  const authentication = new AuthenticationService(app);
+class GitHubStrategy extends OAuthStrategy {
+	async getEntityData(profile: OAuthProfile, existing: any, params: Params) {
+		const baseData = await super.getEntityData(profile, existing, params);
 
-  authentication.register('jwt', new JWTStrategy());
-  authentication.register('local', new LocalStrategy());
+		return {
+			...baseData,
+			// You can also set the display name to profile.name
+			name: profile.login,
+			// The GitHub profile image
+			avatar: profile.avatar_url,
+			// The user email address (if available)
+			email: profile.email
+		};
+	}
+}
 
-  app.use('/authentication', authentication);
-  app.configure(expressOauth());
+export default function (app: Application): void {
+	const authentication = new AuthenticationService(app);
+
+	authentication.register('jwt', new JWTStrategy());
+	authentication.register('local', new LocalStrategy());
+	authentication.register('github', new GitHubStrategy());
+
+	app.use('/authentication', authentication);
+	app.configure(expressOauth());
 }
